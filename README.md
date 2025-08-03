@@ -1,37 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🔁 Solana Token Swap Program
 
-## Getting Started
+A simple and efficient token swapping smart contract built on **Solana** using **Anchor**. This program allows two users to swap tokens directly with each other at a 1:1 ratio, with minimal fees and secure vault-based escrow.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🚀 How It Works
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. **User A** creates a swap offer:
+   - Deposits Token A into a **vault** (a token account controlled by a PDA).
+   - Specifies the amount and the token they want in return (Token B).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+2. **User B** accepts the offer:
+   - Deposits the exact amount of Token B.
+   - Triggers the program to execute the swap.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. **Program Execution**:
+   - Token B is sent to User A.
+   - Token A is released from the vault and sent to User B.
+   - Vault is closed and the swap offer is deleted.
+   - Both users receive the same amount they offered—no fees, no slippage.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 📦 Program Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 📁 Accounts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `SwapOffer` – Stores details like initializer, token mints, and amount.
+- `Vault` – Holds Token A safely under program control.
+- `Authority (PDA)` – Has authority over the vault.
+- `User Token Accounts` – Standard SPL token accounts for both users.
 
-## Deploy on Vercel
+---
+<!-- 
+## 🧪 Usage Example (Anchor)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 🔧 Initialize Swap
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# Sol-Swap
+```ts
+await program.rpc.initializeSwap(
+  amount,
+  {
+    accounts: {
+      initializer: userA.publicKey,
+      initializerDepositTokenAccount: userATokenA,
+      vaultAccount: vaultPDA,
+      swapOffer: swapOfferPDA,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+      rent: SYSVAR_RENT_PUBKEY,
+    },
+    signers: [userA],
+  }
+); -->
