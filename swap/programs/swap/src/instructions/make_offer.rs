@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+
 use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{Mint, TokenAccount, TokenInterface},
@@ -28,7 +29,7 @@ pub struct MakeOffer<'info> {
     #[account(
         init,
         payer = maker,
-        space = ANCHOR_DISCRIMINATOR + Offer::InitSpace,
+        space = ANCHOR_DISCRIMINATOR + Offer::INIT_SPACE,
         seeds = [b"offer", maker.key().as_ref(), id.to_le_bytes().as_ref()],
         bump,
     )]
@@ -65,13 +66,23 @@ pub fn send_offered_tokens_to_vault(
 }
 
 pub fn save_offer(ctx: Context<MakeOffer>, id: u64, token_b_wanted_amount: u64) -> Result<()> {
-    let offer = &mut ctx.accounts.offer;
-    offer.id = id;
-    offer.maker = ctx.accounts.maker.key();
-    offer.token_mint_a = ctx.accounts.token_mint_a.key();
-    offer.token_mint_b = ctx.accounts.token_mint_b.key();
-    offer.token_b_wanted_amount = token_b_wanted_amount;
-    offer.bump = *ctx.bumps.get("offer").unwrap();
+    // let offer = &mut ctx.accounts.offer;
+    // offer.id = id;
+    // offer.maker = ctx.accounts.maker.key();
+    // offer.token_mint_a = ctx.accounts.token_mint_a.key();
+    // offer.token_mint_b = ctx.accounts.token_mint_b.key();
+    // offer.token_b_wanted_amount = token_b_wanted_amount;
+    // offer.bump = *ctx.bumps.get("offer").unwrap();
+
+
+    ctx.accounts.offer.set_inner(Offer {
+        id,
+        maker: ctx.accounts.maker.key(),
+        token_mint_a: ctx.accounts.token_mint_a.key(),
+        token_mint_b: ctx.accounts.token_mint_b.key(),
+        token_b_wanted_amount,
+        bump: ctx.bumps.offer,
+    });
 
     Ok(())
 }
