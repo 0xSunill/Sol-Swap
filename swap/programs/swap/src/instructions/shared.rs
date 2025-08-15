@@ -11,14 +11,14 @@ pub fn transfer_token<'info>(
     authority: &Signer<'info>,
     token_program: &Interface<'info, TokenInterface>,
 ) -> Result<()> {
-    let trasfer_account_options = TransferChecked {
+    let transfer_accounts = TransferChecked {
         from: from.to_account_info(),
         mint: mint.to_account_info(),
         to: to.to_account_info(),
         authority: authority.to_account_info(),
     };
 
-    let cpi_context = CpiContext::new(token_program.to_account_info(), trasfer_account_options);
+    let cpi_context = CpiContext::new(token_program.to_account_info(), transfer_accounts);
 
     transfer_checked(cpi_context, *amount, mint.decimals)
 }
