@@ -4,8 +4,8 @@ use anchor_spl::{
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
 
+use super::transfer_token;
 use crate::{Offer, ANCHOR_DISCRIMINATOR};
-use super::trasfer_token;
 
 #[derive(Accounts)]
 #[instruction(id: u64, bump: u8)]
@@ -42,19 +42,27 @@ pub struct MakeOffer<'info> {
         associated_token::token_program = token_program
 
     )]
-    pub vault: InterfaceAccount<'info, TokenInterface>,
+    pub vault: InterfaceAccount<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
-pub fn send_offered_tokens_to_vault(ctx: &Context<MakeOffer>, token_a_offered_amount::u64) -> Result<()> {
-  trasfer_token(&ctx.accounts.maker_token_account_a, &ctx.accounts.vault, &token_a_offered_amount,&ctx.accounts.token_mint_a,&ctx.accounts.maker,  &ctx.accounts.token_program)?;
-  
+pub fn send_offered_tokens_to_vault(
+    ctx: &Context<MakeOffer>,
+    token_a_offered_amount: u64,
+) -> Result<()> {
+    transfer_token(
+        &ctx.accounts.maker_token_account_a,
+        &ctx.accounts.vault,
+        &token_a_offered_amount,
+        &ctx.accounts.token_mint_a,
+        &ctx.accounts.maker,
+        &ctx.accounts.token_program,
+    )?;
+    Ok(())
 }
-
-
 
 pub fn save_offer(ctx: Context<MakeOffer>, id: u64, token_b_wanted_amount: u64) -> Result<()> {
     let offer = &mut ctx.accounts.offer;

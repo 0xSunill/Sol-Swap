@@ -3,7 +3,7 @@ use anchor_spl::token_interface::{
     transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
 
-pub fn trasfer_token<'info>(
+pub fn transfer_token<'info>(
     from: &InterfaceAccount<'info, TokenAccount>,
     to: &InterfaceAccount<'info, TokenAccount>,
     amount: &u64,
