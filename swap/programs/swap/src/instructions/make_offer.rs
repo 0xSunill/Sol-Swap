@@ -12,7 +12,7 @@ use crate::{Offer, ANCHOR_DISCRIMINATOR};
 pub struct MakeOffer<'info> {
     #[account(mut)]
     pub maker: Signer<'info>,
-    
+
     pub token_mint_a: InterfaceAccount<'info, Mint>,
     pub token_mint_b: InterfaceAccount<'info, Mint>,
 
