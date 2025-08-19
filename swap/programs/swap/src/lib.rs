@@ -1,26 +1,30 @@
-pub mod constants;
-pub mod error;
-pub mod instructions;
-pub mod state;
-
 use anchor_lang::prelude::*;
+pub mod contexts;
+pub use contexts::*;
 
+pub mod constants;
 pub use constants::*;
-pub use instructions::*;
+
+pub mod state;
 pub use state::*;
 
+pub mod error;
 declare_id!("H959Jtz2FKx71J2oFfJb1R7uGyuXBpgHZpp9cimtqX2c");
 
 #[program]
 pub mod swap {
     use super::*;
-    pub fn make_offer(
-        ctx: Context<MakeOffer>,
-        id: u64,
-        token_a_offered_amount: u64,
-        token_b_wanted_amount: u64,
-    ) -> Result<()> {
-        instructions::make_offer::send_offered_tokens_to_vault(&ctx, token_a_offered_amount)?;
-        instructions::make_offer::save_offer(ctx, id, token_b_wanted_amount)
+    pub fn make(ctx: Context<Make>, seed: u64, deposit: u64, recive: u64) -> Result<()> {
+        ctx.accounts.deposit(deposit)?;
+        ctx.accounts.save_escrow(seed, recive, &ctx.bumps)
+    }
+
+    pub fn refund(ctx: Context<Refund>) -> Result<()> {
+        ctx.accounts.refund_and_account_close_vault()
+    }
+}
+    pub fn take(ctx: Context<Take>) -> Result<()> {
+        ctx.accounts.deposit()?;
+        ctx.accounts.withdraw_and_close_vault()
     }
 }
