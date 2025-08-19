@@ -14,9 +14,9 @@ declare_id!("H959Jtz2FKx71J2oFfJb1R7uGyuXBpgHZpp9cimtqX2c");
 #[program]
 pub mod swap {
     use super::*;
-    pub fn make(ctx: Context<Make>, seed: u64, deposit: u64, recive: u64) -> Result<()> {
+    pub fn make(ctx: Context<Make>, seed: u64, deposit: u64, receive: u64) -> Result<()> {
         ctx.accounts.deposit(deposit)?;
-        ctx.accounts.save_escrow(seed, recive, &ctx.bumps)
+        ctx.accounts.save_escrow(seed, receive, &ctx.bumps)
     }
 
     pub fn refund(ctx: Context<Refund>) -> Result<()> {
