@@ -62,32 +62,17 @@ impl<'info> Make<'info> {
         });
         Ok(())
     }
+
+    pub fn deposit(&mut self, deposit: u64) -> Result<()> {
+        let transfer_accounts = TransferChecked {
+            from: self.maker_ata_a.to_account_info(),
+            mint: self.mint_a.to_account_info(),
+            to: self.vault.to_account_info(),
+            authority: self.maker.to_account_info(),
+        };
+
+        let cpi_ctx = CpiContext::new(self.token_program.to_account_info, transfer_accounts);
+        transfer_checked(cpi_ctx, deposit, self.mint_a.decimals)
+    }
 }
 
-// pub fn send_offered_tokens_to_vault(
-//     ctx: &Context<MakeOffer>,
-//     token_a_offered_amount: u64,
-// ) -> Result<()> {
-//     transfer_token(
-//         &ctx.accounts.maker_token_account_a,
-//         &ctx.accounts.vault,
-//         &token_a_offered_amount,
-//         &ctx.accounts.token_mint_a,
-//         &ctx.accounts.maker,
-//         &ctx.accounts.token_program,
-//     )?;
-//     Ok(())
-// }
-
-// pub fn save_offer(ctx: Context<MakeOffer>, id: u64, token_b_wanted_amount: u64) -> Result<()> {
-//     ctx.accounts.offer.set_inner(Offer {
-//         id,
-//         maker: ctx.accounts.maker.key(),
-//         token_mint_a: ctx.accounts.token_mint_a.key(),
-//         token_mint_b: ctx.accounts.token_mint_b.key(),
-//         token_b_wanted_amount,
-//         bump: ctx.bumps.offer,
-//     });
-
-//     Ok(())
-// }
