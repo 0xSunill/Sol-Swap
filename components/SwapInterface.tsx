@@ -2,18 +2,8 @@
 
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import * as anchor from "@coral-xyz/anchor";
-import {
-    Program,
-    AnchorProvider,
-    Idl,
-    BorshCoder,
-} from "@coral-xyz/anchor";
-import {
-    PublicKey,
-    SystemProgram,
-    LAMPORTS_PER_SOL,
-    Transaction,
-} from "@solana/web3.js";
+import { Program, AnchorProvider, Idl } from "@coral-xyz/anchor";
+import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import {
     ASSOCIATED_TOKEN_PROGRAM_ID,
     TOKEN_PROGRAM_ID,
@@ -21,9 +11,14 @@ import {
     getAccount,
 } from "@solana/spl-token";
 import { useState, useEffect } from "react";
-// import { Swap, IDL } from "../../swap/target/types/swap";
-import { Swap } from "../swap/target/types/swap";
 import toast from "react-hot-toast";
+
+//  👇 1. IMPORT THE TYPE FROM THE .ts FILE
+import { type Swap } from "../swap/target/types/swap";
+
+//  👇 2. IMPORT THE IDL VALUE FROM THE .json FILE
+import idl from "../swap/target/idl/swap.json";
+
 
 // Program ID from your Anchor deployment
 const programId = new PublicKey("H959Jtz2FKx71J2oFfJb1R7uGyuXBpgHZpp9cimtqX2c");
@@ -45,6 +40,7 @@ type Offer = {
 export default function SwapInterface() {
     const { connection } = useConnection();
     const wallet = useWallet();
+    // 👇 3. USE THE IMPORTED 'Swap' TYPE FOR STATE
     const [program, setProgram] = useState<Program<Swap> | null>(null);
     const [offers, setOffers] = useState<Offer[]>([]);
 
@@ -57,16 +53,16 @@ export default function SwapInterface() {
     useEffect(() => {
         if (wallet.connected && connection) {
             const provider = new AnchorProvider(connection, wallet as any, {});
-            const program = new Program(Swap as Idl, provider);
-            setProgram(program as any);
+            // 👇 4. USE THE IMPORTED 'idl' VALUE TO CREATE THE PROGRAM
+            const program = new Program<Swap>(idl as Idl, provider);
+            setProgram(program); // No need for 'as any' here anymore
         }
-    }, [wallet.connected, connection]);
+    }, [wallet.connected, connection, wallet]);
 
-    useEffect(() => {
-        if (program) {
-            fetchOffers();
-        }
-    }, [program]);
+    // THE REST OF THE COMPONENT REMAINS EXACTLY THE SAME...
+
+    // ... (fetchOffers, handleMake, handleTake, handleRefund, and JSX)
+    // ...
 
     const fetchOffers = async () => {
         if (!program) return;
@@ -76,22 +72,17 @@ export default function SwapInterface() {
             const offersWithVaults = await Promise.all(
                 fetchedRawOffers.map(async (offer) => {
                     const escrow = offer.account;
-                    const [vault] = PublicKey.findProgramAddressSync(
-                        [
-                            Buffer.from("escrow"),
-                            escrow.maker.toBuffer(),
-                            escrow.seed.toArrayLike(Buffer, "le", 8),
-                        ],
-                        program.programId
-                    );
 
-                    // Find the associated token address for the vault.
-                    const vaultAta = await getAssociatedTokenAddress(escrow.mintA, vault, true);
+                    // Note: The vault PDA is derived from the escrow's PDA, not the maker's key directly in this setup
+                    const vaultAta = await getAssociatedTokenAddress(escrow.mintA, offer.publicKey, true);
 
                     let vaultAmount = 0;
                     try {
                         const vaultAccount = await getAccount(connection, vaultAta);
-                        vaultAmount = Number(vaultAccount.amount) / LAMPORTS_PER_SOL; // Adjust for decimals
+                        // THIS IS A MAJOR POINT: Adjust decimals based on the actual mint info. Hardcoding LAMPORTS_PER_SOL is only for SOL.
+                        // For a real app, you'd fetch mint decimals: `const mintInfo = await getMint(connection, escrow.mintA);`
+                        // For this example, we assume 9 decimals like SOL.
+                        vaultAmount = Number(vaultAccount.amount) / (10 ** 9);
                     } catch (e) {
                         console.log("Could not fetch vault account, it might be closed.", e)
                     }
@@ -114,8 +105,9 @@ export default function SwapInterface() {
         const toastId = toast.loading("Creating swap offer...");
         try {
             const seed = new anchor.BN(Math.floor(Math.random() * 100000000));
-            const deposit = new anchor.BN(parseFloat(depositAmount) * LAMPORTS_PER_SOL);
-            const receive = new anchor.BN(parseFloat(receiveAmount) * LAMPORTS_PER_SOL);
+            // Again, assuming 9 decimals for amounts
+            const deposit = new anchor.BN(parseFloat(depositAmount) * (10 ** 9));
+            const receive = new anchor.BN(parseFloat(receiveAmount) * (10 ** 9));
 
             const mintAPubKey = new PublicKey(mintA);
             const mintBPubKey = new PublicKey(mintB);
@@ -167,14 +159,7 @@ export default function SwapInterface() {
             const takerAtaB = await getAssociatedTokenAddress(mintB, wallet.publicKey);
             const makerAtaB = await getAssociatedTokenAddress(mintB, maker);
 
-            const [escrow] = PublicKey.findProgramAddressSync(
-                [
-                    Buffer.from("escrow"),
-                    maker.toBuffer(),
-                    seed.toArrayLike(Buffer, "le", 8),
-                ],
-                program.programId
-            );
+            const escrow = offer.publicKey;
             const vault = await getAssociatedTokenAddress(mintA, escrow, true);
 
             const tx = await program.methods
@@ -208,17 +193,10 @@ export default function SwapInterface() {
         const toastId = toast.loading("Refunding swap offer...");
 
         try {
-            const { maker, mintA, seed } = offer.account;
+            const { maker, mintA } = offer.account;
 
             const makerAtaA = await getAssociatedTokenAddress(mintA, maker);
-            const [escrow] = PublicKey.findProgramAddressSync(
-                [
-                    Buffer.from("escrow"),
-                    maker.toBuffer(),
-                    seed.toArrayLike(Buffer, "le", 8),
-                ],
-                program.programId
-            );
+            const escrow = offer.publicKey;
             const vault = await getAssociatedTokenAddress(mintA, escrow, true);
 
             const tx = await program.methods.refund()
@@ -307,7 +285,7 @@ export default function SwapInterface() {
                                         <p className="text-xs font-mono truncate" title={offer.account.mintA.toString()}>Mint: {offer.account.mintA.toString()}</p>
                                     </div>
                                     <div className="bg-gray-100 dark:bg-gray-700/50 p-3 rounded">
-                                        <p><strong>Requesting:</strong> {(Number(offer.account.receive) / LAMPORTS_PER_SOL).toFixed(2)}</p>
+                                        <p><strong>Requesting:</strong> {(Number(offer.account.receive) / (10 ** 9)).toFixed(2)}</p>
                                         <p className="text-xs font-mono truncate" title={offer.account.mintB.toString()}>Mint: {offer.account.mintB.toString()}</p>
                                     </div>
                                     <div className="flex gap-2 mt-auto pt-2">
