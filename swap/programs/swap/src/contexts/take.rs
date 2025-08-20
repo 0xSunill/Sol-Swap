@@ -11,7 +11,6 @@ use anchor_spl::{
 use crate::Escrow;
 
 #[derive(Accounts)]
-#[instruction(seed: u64)]
 pub struct Take<'info> {
     #[account(mut)]
     pub taker: Signer<'info>,
@@ -22,8 +21,7 @@ pub struct Take<'info> {
     pub mint_a: InterfaceAccount<'info, Mint>,
     #[account(mint::token_program = token_program)]
     pub mint_b: InterfaceAccount<'info, Mint>,
-    // pub mint_a: InterfaceAccount<'info, Mint>,
-    // pub mint_b: InterfaceAccount<'info, Mint>,
+   
     #[account(
         init_if_needed,
         payer=taker,

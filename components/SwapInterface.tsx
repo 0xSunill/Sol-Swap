@@ -225,9 +225,200 @@ export default function SwapInterface() {
     };
 
     // These functions can remain the same as the contract logic doesn't change
-    const fetchOffers = async () => { /* ... implementation from previous steps ... */ };
-    const handleTake = async (offer: Offer) => { /* ... implementation from previous steps ... */ };
-    const handleRefund = async (offer: Offer) => { /* ... implementation from previous steps ... */ };
+    const fetchOffers = async () => {
+        if (!program) return;
+
+        try {
+            // 1) Fetch all Escrow accounts for this program
+            const escrows = await program.account.escrow.all();
+
+            // 2) Enrich with current vault balance (human units) for display
+            const enriched = await Promise.all(
+                escrows.map(async ({ publicKey, account }) => {
+                    // Derive the vault ATA owned by the escrow PDA
+                    const vaultAta = await getAssociatedTokenAddress(account.mintA, publicKey, true);
+
+                    // Read token amount from the vault
+                    let rawAmount = 0n;
+                    try {
+                        const acc = await getAccount(connection, vaultAta);
+                        rawAmount = acc.amount; // bigint, in base units
+                    } catch {
+                        // If ATA not found yet (race), treat as 0
+                        rawAmount = 0n;
+                    }
+
+                    // Convert to human units using known decimals (fallback 0)
+                    const tokenInfo = getTokenInfoByMint(account.mintA);
+                    const decimals = tokenInfo?.decimals ?? 0;
+                    const vaultAmount =
+                        Number(rawAmount) / Math.pow(10, decimals);
+
+                    return {
+                        publicKey,
+                        account,
+                        vaultAmount,
+                    } as Offer;
+                })
+            );
+
+            // 3) Optional: sort newest first (by seed or whatever you prefer)
+            enriched.sort((a, b) => Number(b.account.seed.sub(a.account.seed)));
+
+            setOffers(enriched);
+        } catch (e) {
+            console.error("fetchOffers error:", e);
+            toast.error("Failed to load offers.");
+        }
+    };
+
+
+
+
+    // handletake
+    const handleTake = async (offer: Offer) => {
+        if (!program || !publicKey) return;
+
+        const toastId = toast.loading("Taking offer...");
+        try {
+            const taker = publicKey;
+            const maker = offer.account.maker;
+            const mintA = offer.account.mintA; // you receive this
+            const mintB = offer.account.mintB; // you pay this
+            const receiveAmount = offer.account.receive; // BN on-chain; how much taker must pay (mintB)
+
+            // Derive program PDAs / ATAs
+            const escrow = offer.publicKey; // already the escrow PDA
+            const vault = await getAssociatedTokenAddress(mintA, escrow, true);
+
+            // ATAs that the Take context expects
+            const takerAtaA = await getAssociatedTokenAddress(mintA, taker);                 // init_if_needed (by program)
+            const takerAtaB = await getAssociatedTokenAddress(mintB, taker);                 // MUST exist (not init_if_needed)
+            const makerAtaB = await getAssociatedTokenAddress(mintB, maker);                 // init_if_needed (by program)
+
+            // Build pre-instructions
+            const preIxs: anchor.web3.TransactionInstruction[] = [];
+
+            // 1) Ensure taker_ata_b exists (you pay from this)
+            const takerAtaBInfo = await connection.getAccountInfo(takerAtaB);
+            if (!takerAtaBInfo) {
+                preIxs.push(
+                    createAssociatedTokenAccountInstruction(
+                        taker,            // payer
+                        takerAtaB,        // ata
+                        taker,            // owner
+                        mintB,            // mint
+                        TOKEN_PROGRAM_ID,
+                        ASSOCIATED_TOKEN_PROGRAM_ID
+                    )
+                );
+            }
+
+            // 2) If paying in wSOL, wrap lamports and sync so transfer_checked succeeds
+            const isPayingWSOL = mintB.equals(TOKENS.SOL.mint);
+            if (isPayingWSOL) {
+                // offer.account.receive is an anchor.BN (u64). Convert carefully.
+                const lamportsNeeded = Number(new anchor.BN(receiveAmount).toString());
+                if (lamportsNeeded > 0) {
+                    preIxs.push(
+                        // deposit lamports into the wSOL ATA
+                        SystemProgram.transfer({
+                            fromPubkey: taker,
+                            toPubkey: takerAtaB,
+                            lamports: lamportsNeeded,
+                        }),
+                        // update token amount = lamports - rent_exempt_reserve
+                        createSyncNativeInstruction(takerAtaB)
+                    );
+                }
+            }
+
+            await program.methods
+                .take()
+                .accounts({
+                    taker,
+                    maker,
+                    mintA,
+                    mintB,
+                    takerAtaA,                  // program will init_if_needed if missing
+                    takerAtaB,                  // must already exist (we created above if needed)
+                    makerAtaB,                  // program will init_if_needed if missing
+                    escrow,
+                    vault,
+                    systemProgram: SystemProgram.programId,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                })
+                .preInstructions(preIxs)
+                .rpc();
+
+            toast.success("Swap completed!", { id: toastId });
+            await fetchOffers();
+        } catch (err) {
+            console.error("Take offer error:", err);
+            toast.error("Failed to take offer.", { id: toastId });
+        }
+    };
+
+
+    // handle refund
+    const handleRefund = async (offer: Offer) => {
+        if (!program || !publicKey) return;
+
+        const toastId = toast.loading("Refunding offer...");
+        try {
+            // Only the maker can refund
+            if (!publicKey.equals(offer.account.maker)) {
+                toast.error("Only the offer maker can refund.", { id: toastId });
+                return;
+            }
+
+            const maker = offer.account.maker;
+            const mintA = offer.account.mintA;
+
+            const escrow = offer.publicKey; // escrow PDA
+            const vault = await getAssociatedTokenAddress(mintA, escrow, true);
+            const makerAtaA = await getAssociatedTokenAddress(mintA, maker);
+
+            // Ensure maker_ata_a exists (Refund context expects it to be initialized)
+            const preIxs: anchor.web3.TransactionInstruction[] = [];
+            const makerAtaAInfo = await connection.getAccountInfo(makerAtaA);
+            if (!makerAtaAInfo) {
+                preIxs.push(
+                    createAssociatedTokenAccountInstruction(
+                        maker,            // payer
+                        makerAtaA,        // ata
+                        maker,            // owner
+                        mintA,            // mint
+                        TOKEN_PROGRAM_ID,
+                        ASSOCIATED_TOKEN_PROGRAM_ID
+                    )
+                );
+            }
+
+            await program.methods
+                .refund()
+                .accounts({
+                    maker,
+                    mintA,
+                    makerAtaA,
+                    escrow,
+                    vault,
+                    systemProgram: SystemProgram.programId,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                })
+                .preInstructions(preIxs)
+                .rpc();
+
+            toast.success("Offer refunded.", { id: toastId });
+            await fetchOffers();
+        } catch (err) {
+            console.error("Refund offer error:", err);
+            toast.error("Failed to refund offer.", { id: toastId });
+        }
+    };
+
 
     return (
         <div className="flex flex-col gap-8">

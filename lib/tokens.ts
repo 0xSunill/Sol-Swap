@@ -31,6 +31,12 @@ export const TOKENS: Record<string, TokenInfo> = {
     mint: new PublicKey("9NGDi2tZtNmCCp8svb5pW32wRYN1PC9o4m4vW4rK7e1B"), // Example Devnet USDT, replace if you have a specific one
     icon: "/usdt.svg",
     decimals: 6,
+  }, SUNIL: {
+    name: "Sunil",
+    symbol: "Sunil",
+    mint: new PublicKey("AePDLZdxGwN9y8a6kxUVEehvRMBkqYiM3GzWwaZF8MmH"), 
+    icon: "/vercel.svg",
+    decimals: 6,
   },
 };
 
