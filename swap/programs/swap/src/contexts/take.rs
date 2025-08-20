@@ -12,17 +12,18 @@ use crate::Escrow;
 
 #[derive(Accounts)]
 #[instruction(seed: u64)]
-
 pub struct Take<'info> {
     #[account(mut)]
     pub taker: Signer<'info>,
 
     #[account(mut)]
     pub maker: SystemAccount<'info>,
-
+    #[account(mint::token_program = token_program)]
     pub mint_a: InterfaceAccount<'info, Mint>,
+    #[account(mint::token_program = token_program)]
     pub mint_b: InterfaceAccount<'info, Mint>,
-
+    // pub mint_a: InterfaceAccount<'info, Mint>,
+    // pub mint_b: InterfaceAccount<'info, Mint>,
     #[account(
         init_if_needed,
         payer=taker,
@@ -86,9 +87,10 @@ impl<'info> Take<'info> {
     }
     pub fn withdraw_and_close_vault(&mut self) -> Result<()> {
         // withdraw
+        let binding = self.maker.to_account_info().key();
         let signer_seeds: [&[&[u8]]; 1] = [&[
             b"escrow",
-            self.maker.to_account_info().key.as_ref(),
+            binding.as_ref(),
             &self.escrow.seed.to_le_bytes()[..],
             &[self.escrow.bump],
         ]];
@@ -96,7 +98,7 @@ impl<'info> Take<'info> {
         let accounts = TransferChecked {
             from: self.vault.to_account_info(),
             mint: self.mint_a.to_account_info(),
-            to: self.taker_ata_b.to_account_info(),
+            to: self.taker_ata_a.to_account_info(),
             authority: self.escrow.to_account_info(),
         };
         let ctx = CpiContext::new_with_signer(

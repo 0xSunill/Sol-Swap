@@ -11,7 +11,6 @@ use anchor_spl::{
 use crate::Escrow;
 
 #[derive(Accounts)]
-#[instruction(seed: u64)]
 
 pub struct Refund<'info> {
     maker: Signer<'info>,
@@ -34,7 +33,7 @@ pub struct Refund<'info> {
         seeds = [b"escrow", maker.key().as_ref(), escrow.seed.to_le_bytes().as_ref()],
         bump = escrow.bump,
     )]
-   escrow: Account<'info, Escrow>,
+    escrow: Account<'info, Escrow>,
 
     #[account(
         mut,
@@ -52,9 +51,10 @@ pub struct Refund<'info> {
 impl<'info> Refund<'info> {
     pub fn refund_and_close_vault(&mut self) -> Result<()> {
         // refund account
+        let binding = self.maker.to_account_info().key();
         let signer_seeds: [&[&[u8]]; 1] = [&[
             b"escrow",
-            self.maker.to_account_info().key.as_ref(),
+            binding.as_ref(),
             &self.escrow.seed.to_le_bytes()[..],
             &[self.escrow.bump],
         ]];
