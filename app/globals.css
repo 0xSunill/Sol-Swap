@@ -1,43 +1,46 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background-start-rgb: 10, 10, 25;
+  --background-end-rgb: 25, 10, 40;
+  --foreground-rgb: 230, 230, 245;
+  --card-rgb: 30, 30, 50;
+  --input-rgb: 45, 45, 70;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+    font-family: var(--font-sans);
 }
 
-/* Add these utility classes */
-.input-style {
-  @apply w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500;
+/* Wallet Adapter Styles Override */
+.wallet-adapter-button-trigger {
+    background: #512da8; /* A nice purple */
+    transition: background 0.2s ease-in-out;
+}
+.wallet-adapter-button-trigger:hover {
+    background: #673ab7;
 }
 
-.btn-primary {
-  @apply w-full px-4 py-3 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed;
+.wallet-adapter-modal-wrapper {
+    background: rgba(10, 10, 25, 0.8);
 }
-
-.btn-secondary {
-  @apply w-full px-3 py-2 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed;
+.wallet-adapter-modal-container {
+    background: rgb(30, 30, 50) !important;
 }
-
-.btn-danger {
-  @apply w-full px-3 py-2 bg-red-600 text-white font-semibold rounded-md hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed;
+.wallet-adapter-modal-title {
+    color: #fff !important;
+}
+.wallet-adapter-button {
+    background: rgb(45, 45, 70) !important;
+    color: #fff !important;
+}
+.wallet-adapter-button:hover {
+    background: #512da8 !important;
 }

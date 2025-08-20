@@ -1,16 +1,21 @@
 "use client";
 
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { useWallet } from "@solana/wallet-adapter-react";
 import Image from "next/image";
 
 export default function AppBar() {
+  const { publicKey } = useWallet();
+
   return (
-    <header className="p-4 bg-gray-900/10 dark:bg-black/20 flex justify-between items-center shadow-md">
+    <header className="p-4 flex justify-between items-center">
       <div className="flex items-center gap-3">
-        <Image src="/solana-logo.svg" alt="Solana Logo" width={30} height={30} />
-        <h1 className="text-2xl font-bold">Solana Token Swap</h1>
+        <Image src="/sol.svg" alt="Solana Logo" width={24} height={24} />
+        <h1 className="text-xl font-bold text-gray-200">Solana Swap</h1>
       </div>
-      <WalletMultiButton />
+      <WalletMultiButton style={{ height: '40px' }}>
+        {publicKey ? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}` : 'Connect'}
+      </WalletMultiButton>
     </header>
   );
 }

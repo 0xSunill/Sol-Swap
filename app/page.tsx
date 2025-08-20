@@ -1,15 +1,16 @@
 import AppBar from "@/components/AppBar";
 import SwapInterface from "@/components/SwapInterface";
 
+
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+    <div className="min-h-screen font-sans">
       <AppBar />
-      <main className="container mx-auto max-w-5xl">
+      <main className="container mx-auto max-w-lg p-4">
         <SwapInterface />
       </main>
-      <footer className="text-center p-4 text-xs text-gray-500">
-        Built for the Solana Swap Program.
+      <footer className="text-center p-4 mt-8 text-xs text-gray-400">
+        Decentralized P2P token swapping on Solana
       </footer>
     </div>
   );
