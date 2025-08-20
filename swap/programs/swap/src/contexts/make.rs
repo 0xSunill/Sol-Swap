@@ -56,7 +56,7 @@ impl<'info> Make<'info> {
             seed,
             maker: self.maker.key(),
             mint_a: self.mint_a.key(),
-            mint_b: self.mint_b_key(),
+            mint_b: self.mint_b.key(),
             receive,
             bump: bumps.escrow,
         });
@@ -71,8 +71,7 @@ impl<'info> Make<'info> {
             authority: self.maker.to_account_info(),
         };
 
-        let cpi_ctx = CpiContext::new(self.token_program.to_account_info, transfer_accounts);
+        let cpi_ctx = CpiContext::new(self.token_program.to_account_info(), transfer_accounts);
         transfer_checked(cpi_ctx, deposit, self.mint_a.decimals)
     }
 }
-
