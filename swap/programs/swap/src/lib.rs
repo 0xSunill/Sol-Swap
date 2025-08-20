@@ -20,7 +20,7 @@ pub mod swap {
     }
 
     pub fn refund(ctx: Context<Refund>) -> Result<()> {
-        ctx.accounts.refund_and_account_close_vault()
+        ctx.accounts.refund_and_close_vault()
     }
 
     pub fn take(ctx: Context<Take>) -> Result<()> {
