@@ -2,8 +2,6 @@ use anchor_lang::prelude::*;
 pub mod contexts;
 pub use contexts::*;
 
-pub mod constants;
-pub use constants::*;
 
 pub mod state;
 pub use state::*;
