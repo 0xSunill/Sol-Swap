@@ -7,6 +7,7 @@ import { PublicKey } from "@solana/web3.js";
 import {
     getAssociatedTokenAddress,
     getAccount,
+    createSyncNativeInstruction,
 } from "@solana/spl-token";
 import { useState, useEffect, useMemo, Fragment } from "react";
 import toast from "react-hot-toast";
@@ -16,6 +17,16 @@ import { TOKENS, TokenInfo, tokenList } from "@/lib/tokens";
 import Image from "next/image";
 import { Menu, Transition } from '@headlessui/react'
 import { ChevronDownIcon, ArrowDownUpIcon } from "lucide-react";
+import {
+    TOKEN_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+    createAssociatedTokenAccountInstruction
+} from "@solana/spl-token";
+import { SystemProgram } from "@solana/web3.js";
+
+
+
+
 
 const programId = new PublicKey(idl.address);
 
@@ -110,9 +121,13 @@ export default function SwapInterface() {
     };
 
     // 2. Updated handleMake function for independent amounts
+    // 2. Updated handleMake function for independent amounts (full version)
     const handleMake = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!program || !publicKey || !fromAmount || !toAmount || parseFloat(fromAmount) <= 0 || parseFloat(toAmount) <= 0) return;
+
+        if (!program || !publicKey) return;
+        if (!fromAmount || !toAmount) return;
+        if (parseFloat(fromAmount) <= 0 || parseFloat(toAmount) <= 0) return;
 
         if (fromToken.symbol === toToken.symbol) {
             toast.error("Cannot swap the same token.");
@@ -120,23 +135,70 @@ export default function SwapInterface() {
         }
 
         const toastId = toast.loading("Creating swap offer...");
+
         try {
-            const seed = new anchor.BN(Math.floor(Math.random() * 100000000));
+            // Avoid floating-point issues: convert a decimal string to BN with decimals
+            const toBN = (val: string, decimals: number) => {
+                const [ints, fracRaw = ""] = val.trim().split(".");
+                const frac = (fracRaw + "0".repeat(decimals)).slice(0, decimals);
+                const base = new anchor.BN(10).pow(new anchor.BN(decimals));
+                const intBN = new anchor.BN(ints || "0").mul(base);
+                const fracBN = new anchor.BN(frac || "0");
+                return intBN.add(fracBN);
+            };
 
-            const depositAmount = parseFloat(fromAmount) * (10 ** fromToken.decimals);
-            const receiveAmount = parseFloat(toAmount) * (10 ** toToken.decimals);
+            const seed = new anchor.BN(Math.floor(Math.random() * 1_0000_0000));
+            const deposit = toBN(fromAmount, fromToken.decimals); // amount of mintA
+            const receive = toBN(toAmount, toToken.decimals);     // amount of mintB
 
-            const deposit = new anchor.BN(depositAmount);
-            const receive = new anchor.BN(receiveAmount);
-
+            // Maker's ATA for mintA (must exist before calling make)
             const makerAtaA = await getAssociatedTokenAddress(fromToken.mint, publicKey);
+
+            // Escrow PDA (program owns the vault)
             const [escrow] = PublicKey.findProgramAddressSync(
                 [Buffer.from("escrow"), publicKey.toBuffer(), seed.toArrayLike(Buffer, "le", 8)],
                 program.programId
             );
+
+            // Vault ATA (owned by escrow PDA; program will init it)
             const vault = await getAssociatedTokenAddress(fromToken.mint, escrow, true);
 
-            const tx = await program.methods
+            // Build pre-instructions (create maker ATA if needed, wrap SOL if needed)
+            const preIxs: anchor.web3.TransactionInstruction[] = [];
+
+            // 1) Ensure maker ATA exists
+            const makerAtaInfo = await connection.getAccountInfo(makerAtaA);
+            if (!makerAtaInfo) {
+                preIxs.push(
+                    createAssociatedTokenAccountInstruction(
+                        publicKey,              // payer
+                        makerAtaA,              // ata
+                        publicKey,              // owner
+                        fromToken.mint,         // mint
+                        TOKEN_PROGRAM_ID,
+                        ASSOCIATED_TOKEN_PROGRAM_ID
+                    )
+                );
+            }
+
+            // 2) If sending SOL (wSOL), wrap enough SOL and sync
+            const isWSOL = fromToken.mint.equals(TOKENS.SOL.mint);
+            if (isWSOL) {
+                const lamportsToWrap = Number(deposit.toString());
+                if (lamportsToWrap > 0) {
+                    preIxs.push(
+                        SystemProgram.transfer({
+                            fromPubkey: publicKey,
+                            toPubkey: makerAtaA,
+                            lamports: lamportsToWrap,
+                        }),
+                        createSyncNativeInstruction(makerAtaA)
+                    );
+                }
+            }
+
+            // Call program
+            await program.methods
                 .make(seed, deposit, receive)
                 .accounts({
                     maker: publicKey,
@@ -145,10 +207,14 @@ export default function SwapInterface() {
                     makerAtaA: makerAtaA,
                     escrow: escrow,
                     vault: vault,
+                    systemProgram: SystemProgram.programId,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
                 })
+                .preInstructions(preIxs)
                 .rpc();
 
-            toast.success(`Offer created!`, { id: toastId });
+            toast.success("Offer created!", { id: toastId });
             setFromAmount("");
             setToAmount("");
             await fetchOffers();
