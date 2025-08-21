@@ -10,7 +10,7 @@ import {
     createAssociatedTokenAccountInstruction
 } from "@solana/spl-token";
 import toast from "react-hot-toast";
-import { type Swap } from "../../swap/target/types/swap";
+import { type Swap } from "../swap/target/types/swap";
 import { Offer } from "@/types/swap";
 import { TOKENS, TokenInfo } from "@/lib/tokens";
 import { toBN, getTokenInfoByMint } from "@/lib/swapUtils";
@@ -20,12 +20,12 @@ export class SwapService {
         private program: Program<Swap>,
         private connection: Connection,
         private publicKey: PublicKey
-    ) {}
+    ) { }
 
     async fetchOffers(): Promise<Offer[]> {
         try {
             console.log("Fetching offers...");
-            
+
             // Check if program is available
             if (!this.program) {
                 console.log("Program not available");
@@ -44,13 +44,13 @@ export class SwapService {
                         const vaultAta = await getAssociatedTokenAddress(account.mintA, publicKey, true);
 
                         // Read token amount from the vault
-                        let rawAmount = 0n;
+                        let rawAmount = BigInt(0); 
                         try {
                             const acc = await getAccount(this.connection, vaultAta);
                             rawAmount = acc.amount; // bigint, in base units
                         } catch (vaultError) {
                             console.log("Vault not found or empty:", vaultError);
-                            rawAmount = 0n;
+                            rawAmount = BigInt(0);
                         }
 
                         // Convert to human units using known decimals (fallback 0)
@@ -153,13 +153,13 @@ export class SwapService {
                     maker: this.publicKey,
                     mintA: fromToken.mint,
                     mintB: toToken.mint,
-                    makerAtaA: makerAtaA,
+                    makerAtaA, 
                     escrow: escrow,
                     vault: vault,
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
                     associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-                })
+                }as any)
                 .preInstructions(preIxs)
                 .rpc();
 
@@ -241,7 +241,7 @@ export class SwapService {
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
                     associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-                })
+                }as any)
                 .preInstructions(preIxs)
                 .rpc();
 
@@ -296,7 +296,7 @@ export class SwapService {
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
                     associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-                })
+                }as any)
                 .preInstructions(preIxs)
                 .rpc();
 
