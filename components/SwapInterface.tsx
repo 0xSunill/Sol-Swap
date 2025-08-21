@@ -376,7 +376,7 @@ export default function SwapInterface() {
             const maker = offer.account.maker;
             const mintA = offer.account.mintA;
 
-            const escrow = offer.publicKey; // escrow PDA
+            const escrow = offer.publicKey; 
             const vault = await getAssociatedTokenAddress(mintA, escrow, true);
             const makerAtaA = await getAssociatedTokenAddress(mintA, maker);
 
