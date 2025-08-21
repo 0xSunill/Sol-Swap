@@ -10,7 +10,7 @@ import {
     createAssociatedTokenAccountInstruction
 } from "@solana/spl-token";
 import toast from "react-hot-toast";
-import { type Swap } from "../swap/target/types/swap";
+import { type Swap } from "../../swap/target/types/swap";
 import { Offer } from "@/types/swap";
 import { TOKENS, TokenInfo } from "@/lib/tokens";
 import { toBN, getTokenInfoByMint } from "@/lib/swapUtils";
@@ -24,47 +24,61 @@ export class SwapService {
 
     async fetchOffers(): Promise<Offer[]> {
         try {
+            console.log("Fetching offers...");
+            
+            // Check if program is available
+            if (!this.program) {
+                console.log("Program not available");
+                return [];
+            }
+
             // Fetch all Escrow accounts for this program
             const escrows = await this.program.account.escrow.all();
+            console.log(`Found ${escrows.length} escrow accounts`);
 
             // Enrich with current vault balance (human units) for display
             const enriched = await Promise.all(
                 escrows.map(async ({ publicKey, account }) => {
-                    // Derive the vault ATA owned by the escrow PDA
-                    const vaultAta = await getAssociatedTokenAddress(account.mintA, publicKey, true);
-
-                    // Read token amount from the vault
-                    let rawAmount = 0n;
                     try {
-                        const acc = await getAccount(this.connection, vaultAta);
-                        rawAmount = acc.amount; // bigint, in base units
-                    } catch {
-                        // If ATA not found yet (race), treat as 0
-                        rawAmount = 0n;
+                        // Derive the vault ATA owned by the escrow PDA
+                        const vaultAta = await getAssociatedTokenAddress(account.mintA, publicKey, true);
+
+                        // Read token amount from the vault
+                        let rawAmount = 0n;
+                        try {
+                            const acc = await getAccount(this.connection, vaultAta);
+                            rawAmount = acc.amount; // bigint, in base units
+                        } catch (vaultError) {
+                            console.log("Vault not found or empty:", vaultError);
+                            rawAmount = 0n;
+                        }
+
+                        // Convert to human units using known decimals (fallback 0)
+                        const tokenInfo = getTokenInfoByMint(account.mintA);
+                        const decimals = tokenInfo?.decimals ?? 0;
+                        const vaultAmount = Number(rawAmount) / Math.pow(10, decimals);
+
+                        return {
+                            publicKey,
+                            account,
+                            vaultAmount,
+                        } as Offer;
+                    } catch (offerError) {
+                        console.error("Error processing offer:", offerError);
+                        return null;
                     }
-
-                    // Convert to human units using known decimals (fallback 0)
-                    const tokenInfo = getTokenInfoByMint(account.mintA);
-                    const decimals = tokenInfo?.decimals ?? 0;
-                    const vaultAmount =
-                        Number(rawAmount) / Math.pow(10, decimals);
-
-                    return {
-                        publicKey,
-                        account,
-                        vaultAmount,
-                    } as Offer;
                 })
             );
 
-            // Optional: sort newest first (by seed or whatever you prefer)
-            enriched.sort((a, b) => Number(b.account.seed.sub(a.account.seed)));
+            // Filter out null values and sort newest first
+            const validOffers = enriched.filter((offer): offer is Offer => offer !== null);
+            validOffers.sort((a, b) => Number(b.account.seed.sub(a.account.seed)));
 
-            return enriched;
+            console.log(`Returning ${validOffers.length} valid offers`);
+            return validOffers;
         } catch (e) {
             console.error("fetchOffers error:", e);
-            toast.error("Failed to load offers.");
-            return [];
+            throw new Error("Failed to load offers");
         }
     }
 
@@ -153,6 +167,7 @@ export class SwapService {
         } catch (error) {
             console.error("Make offer error:", error);
             toast.error("Failed to create offer.", { id: toastId });
+            throw error;
         }
     }
 
@@ -234,6 +249,7 @@ export class SwapService {
         } catch (err) {
             console.error("Take offer error:", err);
             toast.error("Failed to take offer.", { id: toastId });
+            throw err;
         }
     }
 
@@ -288,6 +304,7 @@ export class SwapService {
         } catch (err) {
             console.error("Refund offer error:", err);
             toast.error("Failed to refund offer.", { id: toastId });
+            throw err;
         }
     }
 }
