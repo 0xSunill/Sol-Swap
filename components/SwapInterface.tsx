@@ -1,5 +1,4 @@
 "use client";
-
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import * as anchor from "@coral-xyz/anchor";
 import { Program, AnchorProvider, Idl } from "@coral-xyz/anchor";
@@ -23,13 +22,7 @@ import {
     createAssociatedTokenAccountInstruction
 } from "@solana/spl-token";
 import { SystemProgram } from "@solana/web3.js";
-
-
-
-
-
 const programId = new PublicKey(idl.address);
-
 type Offer = {
     publicKey: PublicKey;
     account: {
@@ -121,7 +114,6 @@ export default function SwapInterface() {
     };
 
     // 2. Updated handleMake function for independent amounts
-    // 2. Updated handleMake function for independent amounts (full version)
     const handleMake = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -376,7 +368,7 @@ export default function SwapInterface() {
             const maker = offer.account.maker;
             const mintA = offer.account.mintA;
 
-            const escrow = offer.publicKey; 
+            const escrow = offer.publicKey;
             const vault = await getAssociatedTokenAddress(mintA, escrow, true);
             const makerAtaA = await getAssociatedTokenAddress(mintA, maker);
 
@@ -476,8 +468,8 @@ export default function SwapInterface() {
                 >
                     Create Swap Offer
                 </button>
-                <div className="text-xs text-gray-400 text-center mt-4">
-                    Network Fee: ~0.00025 SOL | Swap Type: Direct P2P
+                <div className="text-sm text-gray-400 text-center mt-4">
+                    <span className=" text-green-400 ">Only on Devnet ( Switch to Devnet )</span> | Swap Type: Direct P2P
                 </div>
             </div>
 

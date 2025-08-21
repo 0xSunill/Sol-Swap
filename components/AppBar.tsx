@@ -14,7 +14,7 @@ export default function AppBar() {
         <Image src="/sol.svg" alt="Solana Logo" width={24} height={24} />
         <h1 className="text-xl font-bold text-gray-200">Solana Swap</h1>
       </div>
-      <WalletButton style={{ height: '40px' }}>
+      <WalletButton >
         {publicKey
           ? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`
           : 'Connect'}

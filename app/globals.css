@@ -18,29 +18,3 @@ body {
     rgb(var(--background-start-rgb));
     font-family: var(--font-sans);
 }
-
-/* Wallet Adapter Styles Override */
-.wallet-adapter-button-trigger {
-    background: #512da8; /* A nice purple */
-    transition: background 0.2s ease-in-out;
-}
-.wallet-adapter-button-trigger:hover {
-    background: #673ab7;
-}
-
-.wallet-adapter-modal-wrapper {
-    background: rgba(10, 10, 25, 0.8);
-}
-.wallet-adapter-modal-container {
-    background: rgb(30, 30, 50) !important;
-}
-.wallet-adapter-modal-title {
-    color: #fff !important;
-}
-.wallet-adapter-button {
-    background: rgb(45, 45, 70) !important;
-    color: #fff !important;
-}
-.wallet-adapter-button:hover {
-    background: #512da8 !important;
-}
