@@ -7,7 +7,8 @@ import {
     createSyncNativeInstruction,
     TOKEN_PROGRAM_ID,
     ASSOCIATED_TOKEN_PROGRAM_ID,
-    createAssociatedTokenAccountInstruction
+    createAssociatedTokenAccountInstruction,
+    createCloseAccountInstruction
 } from "@solana/spl-token";
 import toast from "react-hot-toast";
 import { type Swap } from "../swap/target/types/swap";
@@ -44,7 +45,7 @@ export class SwapService {
                         const vaultAta = await getAssociatedTokenAddress(account.mintA, publicKey, true);
 
                         // Read token amount from the vault
-                        let rawAmount = BigInt(0); 
+                        let rawAmount = BigInt(0);
                         try {
                             const acc = await getAccount(this.connection, vaultAta);
                             rawAmount = acc.amount; // bigint, in base units
@@ -153,13 +154,13 @@ export class SwapService {
                     maker: this.publicKey,
                     mintA: fromToken.mint,
                     mintB: toToken.mint,
-                    makerAtaA, 
+                    makerAtaA,
                     escrow: escrow,
                     vault: vault,
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
                     associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-                }as any)
+                } as any)
                 .preInstructions(preIxs)
                 .rpc();
 
@@ -171,59 +172,76 @@ export class SwapService {
         }
     }
 
+
     async takeOffer(offer: Offer): Promise<void> {
         const toastId = toast.loading("Taking offer...");
         try {
             const taker = this.publicKey;
             const maker = offer.account.maker;
-            const mintA = offer.account.mintA; // you receive this
-            const mintB = offer.account.mintB; // you pay this
-            const receiveAmount = offer.account.receive; // BN on-chain; how much taker must pay (mintB)
+            const mintA = offer.account.mintA; // taker receives this
+            const mintB = offer.account.mintB; // taker pays this
+            const receiveAmount = offer.account.receive;
 
-            // Derive program PDAs / ATAs
-            const escrow = offer.publicKey; // already the escrow PDA
+            const escrow = offer.publicKey;
             const vault = await getAssociatedTokenAddress(mintA, escrow, true);
 
-            // ATAs that the Take context expects
-            const takerAtaA = await getAssociatedTokenAddress(mintA, taker);                 // init_if_needed (by program)
-            const takerAtaB = await getAssociatedTokenAddress(mintB, taker);                 // MUST exist (not init_if_needed)
-            const makerAtaB = await getAssociatedTokenAddress(mintB, maker);                 // init_if_needed (by program)
+            // ATAs (derive with the correct program for each mint if you added tokenProgram fields)
+            const takerAtaA = await getAssociatedTokenAddress(mintA, taker); // program will init_if_needed
+            const takerAtaB = await getAssociatedTokenAddress(mintB, taker); // MUST exist (we ensure below)
+            const makerAtaB = await getAssociatedTokenAddress(mintB, maker); // program will init_if_needed
 
-            // Build pre-instructions
             const preIxs: anchor.web3.TransactionInstruction[] = [];
+            const postIxs: anchor.web3.TransactionInstruction[] = [];
 
-            // 1) Ensure taker_ata_b exists (you pay from this)
+            // Ensure taker pays-from ATA exists
             const takerAtaBInfo = await this.connection.getAccountInfo(takerAtaB);
             if (!takerAtaBInfo) {
                 preIxs.push(
                     createAssociatedTokenAccountInstruction(
-                        taker,            // payer
-                        takerAtaB,        // ata
-                        taker,            // owner
-                        mintB,            // mint
+                        taker,
+                        takerAtaB,
+                        taker,
+                        mintB,
                         TOKEN_PROGRAM_ID,
                         ASSOCIATED_TOKEN_PROGRAM_ID
                     )
                 );
             }
 
-            // 2) If paying in wSOL, wrap lamports and sync so transfer_checked succeeds
+            // --- If paying in SOL (wSOL), wrap exactly `receiveAmount` lamports
             const isPayingWSOL = mintB.equals(TOKENS.SOL.mint);
             if (isPayingWSOL) {
-                // offer.account.receive is an anchor.BN (u64). Convert carefully.
                 const lamportsNeeded = Number(new anchor.BN(receiveAmount).toString());
                 if (lamportsNeeded > 0) {
                     preIxs.push(
-                        // deposit lamports into the wSOL ATA
                         SystemProgram.transfer({
                             fromPubkey: taker,
                             toPubkey: takerAtaB,
                             lamports: lamportsNeeded,
                         }),
-                        // update token amount = lamports - rent_exempt_reserve
                         createSyncNativeInstruction(takerAtaB)
                     );
+                    // After the program moves out those wSOL, takerAtaB will be 0 → close to reclaim rent
+                    postIxs.push(
+                        createCloseAccountInstruction(
+                            takerAtaB,
+                            taker,  // rent + any residual lamports go back to taker
+                            taker
+                        )
+                    );
                 }
+            }
+
+            // --- If receiving SOL (wSOL), unwrap to native SOL after withdraw
+            const isReceivingWSOL = mintA.equals(TOKENS.SOL.mint);
+            if (isReceivingWSOL) {
+                postIxs.push(
+                    createCloseAccountInstruction(
+                        takerAtaA,  // the account that just received wSOL
+                        taker,      // send SOL (lamports) to taker wallet
+                        taker
+                    )
+                );
             }
 
             await this.program.methods
@@ -233,16 +251,17 @@ export class SwapService {
                     maker,
                     mintA,
                     mintB,
-                    takerAtaA,                  // program will init_if_needed if missing
-                    takerAtaB,                  // must already exist (we created above if needed)
-                    makerAtaB,                  // program will init_if_needed if missing
+                    takerAtaA,
+                    takerAtaB,
+                    makerAtaB,
                     escrow,
                     vault,
                     systemProgram: SystemProgram.programId,
-                    tokenProgram: TOKEN_PROGRAM_ID,
+                    tokenProgram: TOKEN_PROGRAM_ID,            // if you split token programs per mint, pass the right one
                     associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-                }as any)
+                } as any)
                 .preInstructions(preIxs)
+                .postInstructions(postIxs)
                 .rpc();
 
             toast.success("Swap completed!", { id: toastId });
@@ -256,7 +275,6 @@ export class SwapService {
     async refundOffer(offer: Offer): Promise<void> {
         const toastId = toast.loading("Refunding offer...");
         try {
-            // Only the maker can refund
             if (!this.publicKey.equals(offer.account.maker)) {
                 toast.error("Only the offer maker can refund.", { id: toastId });
                 return;
@@ -269,18 +287,33 @@ export class SwapService {
             const vault = await getAssociatedTokenAddress(mintA, escrow, true);
             const makerAtaA = await getAssociatedTokenAddress(mintA, maker);
 
-            // Ensure maker_ata_a exists (Refund context expects it to be initialized)
+            // Ensure maker_ata_a exists
             const preIxs: anchor.web3.TransactionInstruction[] = [];
             const makerAtaAInfo = await this.connection.getAccountInfo(makerAtaA);
             if (!makerAtaAInfo) {
                 preIxs.push(
                     createAssociatedTokenAccountInstruction(
-                        maker,            // payer
-                        makerAtaA,        // ata
-                        maker,            // owner
-                        mintA,            // mint
+                        maker,
+                        makerAtaA,
+                        maker,
+                        mintA,
                         TOKEN_PROGRAM_ID,
                         ASSOCIATED_TOKEN_PROGRAM_ID
+                    )
+                );
+            }
+
+            // If mintA is wSOL, add a post-instruction to CLOSE the ATA => unwrap to native SOL
+            const postIxs: anchor.web3.TransactionInstruction[] = [];
+            const isWSOL = mintA.equals(TOKENS.SOL.mint);
+            if (isWSOL) {
+                postIxs.push(
+                    createCloseAccountInstruction(
+                        makerAtaA,        // account to close (wSOL ATA)
+                        maker,            // send reclaimed SOL to maker
+                        maker,            // authority = maker (must sign)
+                        [],               // multiSigners
+                        TOKEN_PROGRAM_ID
                     )
                 );
             }
@@ -296,8 +329,9 @@ export class SwapService {
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
                     associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-                }as any)
+                } as any)
                 .preInstructions(preIxs)
+                .postInstructions(postIxs) // <-- add this
                 .rpc();
 
             toast.success("Offer refunded.", { id: toastId });
@@ -307,4 +341,5 @@ export class SwapService {
             throw err;
         }
     }
+
 }

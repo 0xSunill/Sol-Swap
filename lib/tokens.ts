@@ -25,18 +25,12 @@ export const TOKENS: Record<string, TokenInfo> = {
     icon: "/usdc.svg",
     decimals: 6,
   },
-  USDT: {
-    name: "Tether",
-    symbol: "USDT",
-    mint: new PublicKey("9NGDi2tZtNmCCp8svb5pW32wRYN1PC9o4m4vW4rK7e1B"), // Example Devnet USDT, replace if you have a specific one
-    icon: "/usdt.svg",
-    decimals: 6,
-  }, SUNIL: {
-    name: "Sunil",
-    symbol: "Sunil",
-    mint: new PublicKey("AePDLZdxGwN9y8a6kxUVEehvRMBkqYiM3GzWwaZF8MmH"), 
+  WSOL: {
+    name: "WrappedSOL",
+    symbol: "WSOL",
+    mint: new PublicKey("So11111111111111111111111111111111111111112"),
     icon: "/vercel.svg",
-    decimals: 6,
+    decimals: 9,
   },
 };
 
